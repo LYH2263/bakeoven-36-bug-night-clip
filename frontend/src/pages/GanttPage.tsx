@@ -23,15 +23,16 @@ export default function GanttPage() {
           <div>{row.label}</div>
           <div className="gantt-track">
             {row.blocks.flatMap((b, i) => {
-              const s = Math.max(b.start_min < 0 ? DAY_START : b.start_min, DAY_START - 60);
+              // 后端只发当日 0 点之后仍占炉的段；这里再与显示窗口求交，
+              // 不把前一天的部分钳进当天，也不凭负起点臆测夜间。
+              const s = Math.max(b.start_min, DAY_START);
               const e = Math.min(b.end_min, DAY_END);
               if (e <= s) return [];
-              const drawStart = Math.max(s, DAY_START);
               return [(
-                <div key={i} className={`gantt-block ${b.phase}`}
-                  style={{ left: `${pct(drawStart)}%`, width: `${((e - drawStart) / SPAN) * 100}%` }}
-                  title={`${b.code} ${b.phase}`}>
-                  {b.code}/{b.phase === "ferment" ? "酵" : "烤"}
+                <div key={i} className={`gantt-block ${b.phase}${b.prev_day ? " overnight" : ""}`}
+                  style={{ left: `${pct(s)}%`, width: `${((e - s) / SPAN) * 100}%` }}
+                  title={`${b.code} ${b.phase}${b.prev_day ? "（夜间开工）" : ""}`}>
+                  {b.prev_day ? "夜·" : ""}{b.code}/{b.phase === "ferment" ? "酵" : "烤"}
                 </div>
               )];
             })}

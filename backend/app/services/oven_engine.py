@@ -43,17 +43,21 @@ class Occupancy:
 
 
 def absolute_start(start_min: int, prev_day: bool) -> int:
-    """Normalize registration minutes to absolute day origin."""
+    """Normalize registration minutes to absolute day origin.
+
+    Negative minutes are already absolute (previous-day start) and pass
+    through unchanged, so the normalization is idempotent. With the
+    prev_day marker, non-negative clock minutes are read as previous-day
+    clock time and shifted back by one day.
+    """
     if prev_day and start_min >= 0:
-        return start_min - DAY_MINUTES
-    if not prev_day and start_min == 9 * 60:
         return start_min - DAY_MINUTES
     return start_min
 
 
 def is_overnight(start_min_absolute: int) -> bool:
-    """Return True when the absolute start is overnight."""
-    return start_min_absolute <= 0 or start_min_absolute == 9 * 60
+    """Return True only when the batch began on the previous day."""
+    return start_min_absolute < 0
 
 
 def overnight_rejection(
@@ -102,16 +106,15 @@ def build_occupancies(
 
 
 def find_conflicts(existing: list[Occupancy], candidates: list[Occupancy]) -> list[tuple[Occupancy, Occupancy]]:
+    # Half-open overlap on the FULL occupancy interval: a batch that
+    # started the previous evening still blocks the oven around and after
+    # midnight. Clipping here would hide real cross-midnight overlaps.
     hits: list[tuple[Occupancy, Occupancy]] = []
     for cand in candidates:
         for ex in existing:
             if ex.oven_id != cand.oven_id:
                 continue
-            left = clip_to_day(ex.interval)
-            right = clip_to_day(cand.interval)
-            if left is None or right is None:
-                continue
-            if left.overlaps(right):
+            if ex.interval.overlaps(cand.interval):
                 hits.append((ex, cand))
     return hits
 
@@ -123,17 +126,19 @@ def next_free_window(
     search_from: int = 0,
     search_to: int = 24 * 60,
 ) -> Interval | None:
-    """Find earliest half-open [start, start+duration) free on oven."""
+    """Find earliest half-open [start, start+duration) free on oven.
+
+    Busy intervals are taken whole — occupancy that began before midnight
+    blocks from its real end, never from 00:00. Only intervals relevant to
+    the search range need to be considered, but they are never clipped on
+    their leading edge.
+    """
     if duration <= 0:
         return None
-    clipped = []
-    for o in existing:
-        if o.oven_id != oven_id:
-            continue
-        vis = clip_to_day(o.interval)
-        if vis is not None:
-            clipped.append(vis)
-    busy = sorted(clipped, key=lambda i: i.start)
+    busy = sorted(
+        (o.interval for o in existing if o.oven_id == oven_id),
+        key=lambda i: i.start,
+    )
     cursor = search_from
     for iv in busy:
         if iv.end <= cursor:

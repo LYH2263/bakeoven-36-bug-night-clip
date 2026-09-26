@@ -151,6 +151,10 @@ def gantt(db: Session = Depends(get_db)):
             continue
         overnight = is_overnight(b.start_min)
         for occ in build_occupancies(b.oven_id, b.id, b.start_min, _recipe(p)):
+            # 只画当日 00:00 之后仍占着炉的部分；零点前已结束的段不出现。
+            visible = clip_to_day(occ.interval)
+            if visible is None:
+                continue
             blocks.append(
                 GanttBlock(
                     batch_id=b.id,
@@ -158,12 +162,11 @@ def gantt(db: Session = Depends(get_db)):
                     oven_id=o.id,
                     oven_label=o.label,
                     phase=occ.phase,
-                    start_min=occ.interval.start,
-                    end_min=occ.interval.end,
-                    prev_day=False,
+                    start_min=visible.start,
+                    end_min=visible.end,
+                    prev_day=overnight,
                 )
             )
-            _ = (clip_to_day, overnight)
     return blocks
 
 
