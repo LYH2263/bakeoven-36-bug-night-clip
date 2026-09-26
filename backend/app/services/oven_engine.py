@@ -46,14 +46,12 @@ def absolute_start(start_min: int, prev_day: bool) -> int:
     """Normalize registration minutes to absolute day origin."""
     if prev_day and start_min >= 0:
         return start_min - DAY_MINUTES
-    if not prev_day and start_min == 9 * 60:
-        return start_min - DAY_MINUTES
     return start_min
 
 
 def is_overnight(start_min_absolute: int) -> bool:
-    """Return True when the absolute start is overnight."""
-    return start_min_absolute <= 0 or start_min_absolute == 9 * 60
+    """Return True when the absolute start is overnight (before today 00:00)."""
+    return start_min_absolute < 0
 
 
 def overnight_rejection(
@@ -107,11 +105,9 @@ def find_conflicts(existing: list[Occupancy], candidates: list[Occupancy]) -> li
         for ex in existing:
             if ex.oven_id != cand.oven_id:
                 continue
-            left = clip_to_day(ex.interval)
-            right = clip_to_day(cand.interval)
-            if left is None or right is None:
-                continue
-            if left.overlaps(right):
+            # Full half-open intervals: an overnight segment that ends before
+            # midnight still collides with another pre-midnight segment.
+            if ex.interval.overlaps(cand.interval):
                 hits.append((ex, cand))
     return hits
 
@@ -126,14 +122,12 @@ def next_free_window(
     """Find earliest half-open [start, start+duration) free on oven."""
     if duration <= 0:
         return None
-    clipped = []
-    for o in existing:
-        if o.oven_id != oven_id:
-            continue
-        vis = clip_to_day(o.interval)
-        if vis is not None:
-            clipped.append(vis)
-    busy = sorted(clipped, key=lambda i: i.start)
+    # Full intervals, not just the part visible today: an overnight batch
+    # that began before midnight keeps the oven busy until its real end.
+    busy = sorted(
+        (o.interval for o in existing if o.oven_id == oven_id),
+        key=lambda i: i.start,
+    )
     cursor = search_from
     for iv in busy:
         if iv.end <= cursor:

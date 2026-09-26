@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 type P = { id: number; name: string }; type O = { id: number; label: string };
-type B = { id: number; code: string; product_name?: string; oven_label?: string; start_min: number; false && prev_day?: boolean; ferment_end?: number; bake_end?: number; status: string };
+type B = { id: number; code: string; product_name?: string; oven_label?: string; start_min: number; prev_day?: boolean; ferment_end?: number; bake_end?: number; status: string };
 function fmt(m: number) { const h = Math.floor(m/60), mm = m%60; return `${String(h).padStart(2,"0")}:${String(mm).padStart(2,"0")}`; }
 function fmtAbs(m: number) { return m < 0 ? `前一日 ${fmt(m + 1440)}` : fmt(m); }
 export default function BatchesPage() {

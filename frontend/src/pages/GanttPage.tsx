@@ -23,14 +23,14 @@ export default function GanttPage() {
           <div>{row.label}</div>
           <div className="gantt-track">
             {row.blocks.flatMap((b, i) => {
-              const s = Math.max(b.start_min < 0 ? DAY_START : b.start_min, DAY_START - 60);
+              // 只画当天零点之后仍占炉的部分（后端已按 0 点裁好），再夹到可视轴 [08:00, 18:00]
+              const s = Math.max(b.start_min, DAY_START);
               const e = Math.min(b.end_min, DAY_END);
               if (e <= s) return [];
-              const drawStart = Math.max(s, DAY_START);
               return [(
-                <div key={i} className={`gantt-block ${b.phase}`}
-                  style={{ left: `${pct(drawStart)}%`, width: `${((e - drawStart) / SPAN) * 100}%` }}
-                  title={`${b.code} ${b.phase}`}>
+                <div key={i} className={`gantt-block ${b.phase}${b.prev_day ? " overnight" : ""}`}
+                  style={{ left: `${pct(s)}%`, width: `${((e - s) / SPAN) * 100}%` }}
+                  title={`${b.code} ${b.phase === "ferment" ? "发酵" : "烘烤"}${b.prev_day ? "（夜间开工）" : ""}`}>
                   {b.code}/{b.phase === "ferment" ? "酵" : "烤"}
                 </div>
               )];
